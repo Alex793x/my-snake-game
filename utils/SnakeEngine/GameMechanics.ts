@@ -38,3 +38,9 @@ export const generateRandomFoodPosition = (GRID_HEIGHT: number, GRID_WIDTH: numb
     
     return newPosition;
 };
+
+export const handleCreateNewSnake = (setSnake: Dispatch<SetStateAction<Snake>>) => {
+    const newSnake = new Snake();
+    newSnake.createSnake();
+    setSnake(newSnake);
+}

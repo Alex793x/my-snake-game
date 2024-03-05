@@ -1,4 +1,5 @@
 import Queue from "@/components/Queue";
+import { Dispatch, SetStateAction } from "react";
 
 export type SnakePartType = {
     row: number;
@@ -26,7 +27,7 @@ class Snake {
     }
 
     public removePart() {
-        this.snakeBody.removeFirst();
+        this.snakeBody.removeLast();
     }
 
     public getHead() {
@@ -37,7 +38,17 @@ class Snake {
         return this.snakeBody.getLast();
     }
 
-    public move(newHeadPosition: {row: number, col: number}, ateFood: boolean = false): Snake {
+    public move(newHeadPosition: {row: number, col: number}, ateFood: boolean = false, isPoisonedFood: boolean = false, setGameOver: Dispatch<SetStateAction<boolean>>): Snake {
+        // Check if the new head position collides with any part of the snake's body
+        const collision = this.snakeBody.getBuffer().copyToArray().some(part => 
+            part.row === newHeadPosition.row && part.col === newHeadPosition.col
+        );
+    
+        if (collision) {
+            setGameOver(true);
+            return this; // Return the current state of the snake without moving
+        }
+    
         // Create a new Snake instance and copy the current body
         const newSnake = new Snake();
         newSnake.snakeBody = new Queue();
@@ -46,11 +57,21 @@ class Snake {
         newSnake.snakeBody.add(newHeadPosition);
     
         // Then, copy the rest of the body, skipping the last part if the snake hasn't eaten food
+        // If the snake has eaten poisoned food, remove additional parts from the tail
+        const partsToRemove = ateFood ? 0 : 1;
+        const additionalPartsToRemove = isPoisonedFood ? 3 : 0; // Assuming we remove 3 parts when poisoned
+        const totalPartsToRemove = partsToRemove + additionalPartsToRemove;
+    
         this.snakeBody.getBuffer().copyToArray().forEach((part, index, array) => {
-            if (index < array.length - (ateFood ? 0 : 1)) {
+            if (index < array.length - totalPartsToRemove) {
                 newSnake.snakeBody.add(part);
             }
         });
+    
+        // If the snake has eaten poisoned food and is too short to remove additional parts, set game over
+        if (isPoisonedFood && newSnake.size() < 4) {
+            setGameOver(true);
+        }
     
         return newSnake;
     }
