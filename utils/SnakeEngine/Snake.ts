@@ -37,10 +37,24 @@ class Snake {
         return this.snakeBody.getLast();
     }
 
-    public move(newHeadPosition: {row: number, col: number}, ateFood: boolean = false) {
-        // Add the new head position to the front of the snake
-        this.snakeBody.add(newHeadPosition);
+    public move(newHeadPosition: {row: number, col: number}, ateFood: boolean = false): Snake {
+        // Create a new Snake instance and copy the current body
+        const newSnake = new Snake();
+        newSnake.snakeBody = new Queue();
+    
+        // First, add the new head position at the beginning of the snake
+        newSnake.snakeBody.add(newHeadPosition);
+    
+        // Then, copy the rest of the body, skipping the last part if the snake hasn't eaten food
+        this.snakeBody.getBuffer().copyToArray().forEach((part, index, array) => {
+            if (index < array.length - (ateFood ? 0 : 1)) {
+                newSnake.snakeBody.add(part);
+            }
+        });
+    
+        return newSnake;
     }
+    
 
     public getSnake() {
         return this.snakeBody;

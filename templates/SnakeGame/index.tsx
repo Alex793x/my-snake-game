@@ -1,85 +1,103 @@
 "use client";
-import Queue from '@/components/Queue';
-import { handleKeyDown } from '@/utils/SnakeEngine/GameMechanics';
+import React, { useState, useEffect, useRef } from 'react'
+import { generateRandomFoodPosition, handleKeyDown } from '@/utils/SnakeEngine/GameMechanics';
 import Snake from '@/utils/SnakeEngine/Snake';
 import Grid from '@/utils/SnakeGrid/Grid';
-import React, { useState, useEffect } from 'react'
+import { SnakeFood } from '@/types/Food';
 
 const SnakeGamePage = () => {
-    const [snakeGrid, setSnakeGrid] = useState<Grid>(new Grid(30, 20));
-    const [snake, setSnake] = useState<Snake>(new Snake());
+    const GRID_HEIGHT = 20;
+    const GRID_WIDTH = 30;
+    const [snakeGrid, setSnakeGrid] = useState(new Grid(GRID_HEIGHT, GRID_WIDTH));
+    const [snake, setSnake] = useState(() => {
+        const initialSnake = new Snake();
+        initialSnake.createSnake();
+        return initialSnake;
+    });
+
+    const [snakeSpeed, setSnakeSpeed] = useState(200);
+
     const [direction, setDirection] = useState("ArrowLeft");
+    const [foodPosition, setFoodPosition] = useState<SnakeFood>({ row: 0, col: 0, color: "red", width: 1, height: 1 });
+    
 
-    function tick() {
-        if (!snake.getSnake()) {            
-            return;
-        }
-
-        const snakeQueue = snake.getSnake(); // Assuming this returns a Queue of the snake's body parts
-        const currentHead = snakeQueue.front?.data;
-        if (!currentHead) {
-            console.log("Game over: no head")
-            return;
-        }
-
-        // Calculate new head position based on the current direction
-        const newHeadPosition = { row: currentHead.row, col: currentHead.col };
-        console.log(newHeadPosition);
-
-        switch (direction) {
-            case "ArrowUp": newHeadPosition.row -= 1; break;
-            case "ArrowDown": newHeadPosition.row += 1; break;
-            case "ArrowLeft": newHeadPosition.col -= 1; break;
-            case "ArrowRight": newHeadPosition.col += 1; break;
-        }
-
-        // Collision detection (walls)
-        if (
-            newHeadPosition.row < 0 || newHeadPosition.row >= snakeGrid.rows ||
-            newHeadPosition.col < 0 || newHeadPosition.col >= snakeGrid.cols
-        ) {
-            console.log("Game over: hit a wall");
-            return; // Stop the game or handle game over
-        }
-
-        // Collision detection (self)
-        if (snakeQueue.getBuffer().copyToArray().some(part => part.row === newHeadPosition.row && part.col === newHeadPosition.col)) {
-            console.log("Game over: hit itself");
-            return; // Stop the game or handle game over
-        }
-
-        // Move the snake
-        snake.move(newHeadPosition); // You need to implement this method in your Snake class to update the snake's body
-        setSnakeGrid(prevGrid => new Grid(30, 20));
-
-    }
-
+    const gameBoardRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        setTimeout(() => tick(), 1000);
-    }, [tick]);
+        if (gameBoardRef.current) {
+            gameBoardRef.current.focus(); // Set focus to the game board when the component mounts
+        }
 
+        const handleMove = () => {
+            let head = snake.getHead();
+            if (!head) return;
+            let newHeadPosition = { row: head.row, col: head.col };
 
+            switch (direction) {
+                case "ArrowLeft":
+                    newHeadPosition.col = (newHeadPosition.col - 1 + GRID_WIDTH) % GRID_WIDTH;
+                    break;
+                case "ArrowRight":
+                    newHeadPosition.col = (newHeadPosition.col + 1) % GRID_WIDTH;
+                    break;
+                case "ArrowUp":
+                    newHeadPosition.row = (newHeadPosition.row - 1 + GRID_HEIGHT) % GRID_HEIGHT;
+                    break;
+                case "ArrowDown":
+                    newHeadPosition.row = (newHeadPosition.row + 1) % GRID_HEIGHT;
+                    break;
+                default:
+                    break;
+            }
 
+            if (newHeadPosition.row === foodPosition.row && newHeadPosition.col === foodPosition.col) {
+                // Snake has eaten the food
+                const newSnake = snake.move(newHeadPosition, true);
+                if (newSnake.size() % 4 === 0) {
+                    setSnakeSpeed((prevSpeed) => Math.max(50, prevSpeed * 0.9)); // Increase speed every 4 eaten foods
+                }
+                setSnake(newSnake);
+                const newFoodPosition = generateRandomFoodPosition(GRID_HEIGHT, GRID_WIDTH, newSnake);
+                setFoodPosition({ ...newFoodPosition, color: "red", width: 1, height: 1 });
+            } else {
+                // Normal move
+                const newSnake = snake.move(newHeadPosition);
+                setSnake(newSnake);
+            }
+        };
 
+        const gameLoop = setInterval(handleMove, snakeSpeed); // Move snake every 100 ms
+
+        return () => clearInterval(gameLoop);
+    }, [snake, direction]);
 
     return (
         <div
             className="min-h-screen flex flex-col items-center justify-center"
-            onKeyDown={(e) => handleKeyDown(e, setDirection)}
-            tabIndex={0}
+            onKeyDown={(e) => handleKeyDown(e, direction, setDirection)}
+            tabIndex={0} // tabIndex is necessary for divs to be focusable
+            ref={gameBoardRef} // Attach the ref to the div
         >
+
             <h1 className="text-4xl font-bold mb-12 font-serif">Snake On The Run!</h1>
+            <p></p>
+            <div className="score-board bg-gray-800 text-white p-4 rounded-lg shadow-md mb-7">
+                <h2 className="text-2xl font-bold">Score Board</h2>
+                <div className="mt-2">
+                    <p className="text-lg">Score: <span className="font-mono">{snake.size()}</span></p>
+                </div>
+            </div>
 
             <div className="grid grid-row-3 gap-0.5">
 
                 {snakeGrid.getGrid().map((row, rowIndex) => (
                     <div key={rowIndex} className="flex justify-center gap-0.5 cursor-pointer">
                         {row.map((cell, colIndex) => {
+                            const isFoodCell = foodPosition.row === rowIndex && foodPosition.col === colIndex;
                             const isSnakePart = snake.getSnake().getBuffer().copyToArray().some(part => part.row === rowIndex && part.col === colIndex);
 
                             return (
                                 <button
-                                    className={`h-8 w-8 border rounded-sm ${isSnakePart ? 'bg-green-500' : 'border-blue-400 bg-blue-400'} flex items-center justify-center font-bold font-mono text-9xl`}
+                                    className={`h-8 w-8 border rounded-sm ${isSnakePart ? 'bg-green-500' : isFoodCell ? 'bg-red-500' : 'border-blue-400 bg-blue-400'} flex items-center justify-center font-bold font-mono text-9xl`}
                                     key={colIndex}
                                     onClick={() => console.log(rowIndex, colIndex)}
                                 >
@@ -93,4 +111,6 @@ const SnakeGamePage = () => {
     )
 
 }
+
+
 export default SnakeGamePage;
